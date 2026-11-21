@@ -1,5 +1,7 @@
 #[allow(dead_code)]
 type Psize = u128;
+#[allow(dead_code)]
+type Pisize = i128;
 
 #[proc_macro_derive(PermutationEnum)]
 pub fn permutation_enum(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
@@ -99,12 +101,12 @@ pub fn permutation_enum(input: proc_macro::TokenStream) -> proc_macro::TokenStre
         intos.push(
             quote::quote! {
                 #enum_name::#variant_name(a) => {
-                    return Some(#prev_count + #count + a.current_permutation());
+                    return Some(#prev_count + a.current_permutation()?);
                 }
             }
         );
         prev_count = quote::quote! { (#prev_count) + (#count) };
-        variant_counts.push(count);
+        variant_counts.push(prev_count.clone());
     }
 
     let total = quote::quote! {
@@ -228,7 +230,7 @@ fn fill_right_bits(mut n: usize) -> usize {
 pub fn permutation_for_range_num(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let p = syn::parse_macro_input!(input as PermutationForRangeNum);
     let signed = p.min < 0;
-    assert!(p.min < p.max);
+    assert!(p.min < p.max || p.min > p.max);
     let bits: usize = (
             fill_right_bits(
                 p.max.abs() as usize
@@ -274,95 +276,124 @@ pub fn permutation_for_range_num(input: proc_macro::TokenStream) -> proc_macro::
             panic!()
         }
     };
+    let tt = if signed { &nt } else { &unt };
     let name = p.name;
     let max = p.max;
     let min = p.min;
-    if signed {
-        return quote::quote! {
-            #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-            pub struct #name(#nt);
-            impl #name {
-                pub fn into_super(&self) -> #nt {
-                    self.0
-                }
+    let backwards = min > max;
+    let total_permutations = match (signed, backwards) {
+        (true, false) => {quote::quote!{
+            fn total_permutations() -> Psize {
+                (#max as Pisize)-(#min as Pisize)+1 as Psize
             }
-            impl From<#name> for #nt {
-                fn from(value: #name) -> Self {
-                    value.0
-                }
+        }}
+        (false, false) => {quote::quote!{
+            fn total_permutations() -> Psize {
+                (#max as Psize)-(#min as Psize)+1 as Psize
             }
-            impl From<#nt> for #name {
-                fn from(value: #nt) -> Self {
-                    Self(value)
-                }
+        }}
+        (true, true) => {quote::quote!{
+            fn total_permutations() -> Psize {
+                (#min as Pisize)-(#max as Pisize)+1 as Psize
             }
-            impl Permutation for #name {
-                fn total_permutations() -> Psize { ((#max as isize)-(#min as isize)+1).abs() as Psize }
-                fn current_permutation(&self) -> Option<Psize> {
-                    let value = self.0 as #nt;
-                    let min = #min as #nt;
-                    let max = #max as #nt;
+        }}
+        (false, true) => {quote::quote!{
+            fn total_permutations() -> Psize {
+                (#min as Psize)-(#max as Psize)+1 as Psize
+            }
+        }}
+    };
+    let current_permutations = match backwards {
+        false => {quote::quote!{
+            fn current_permutation(&self) -> Option<Psize> {
+                let value = self.0 as #tt;
+                let min = #min as #tt;
+                let max = #max as #tt;
 
-                    if value < min || value > max {
-                        return None;
-                    }
+                if value < min || value > max {
+                    return None;
+                }
 
-                    Some((value - min) as Psize)
-                }
-                fn from_index(index: Psize) -> Option<Self> {
-                    if index <= Self::total_permutations() {
-                        return Some(Self((index as #unt as #nt)+(#min as #unt as #nt)));
-                    } else {
-                        return None;
-                    }
-                }
+                Some((value - min) as Psize)
             }
-        }.into();
-    } else {
-        return quote::quote! {
-            #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-            pub struct #name(#nt);
-            impl #name {
-                pub fn into(&self) -> #nt {
-                    self.0
-                }
-                pub fn into_super(self) -> #nt {
-                    self.0
-                }
-            }
-            impl From<#name> for #nt {
-                fn from(value: #name) -> Self {
-                    value.0
-                }
-            }
-            impl From<#nt> for #name {
-                fn from(value: #nt) -> Self {
-                    Self(value)
-                }
-            }
-            impl Permutation for #name {
-                fn total_permutations() -> Psize { (#max as Psize)-(#min as Psize)+1 }
-                fn current_permutation(&self) -> Option<Psize> {
-                    let value = self.0 as #unt;
-                    let min = #min as #unt;
-                    let max = #max as #unt;
+        }}
+        true => {quote::quote!{
+            fn current_permutation(&self) -> Option<Psize> {
+                let value = self.0 as #tt;
+                let max = #min as #tt;
+                let min = #max as #tt;
 
-                    if value < min || value > max {
-                        return None;
-                    }
-
-                    Some((value - min) as Psize)
+                if value < min || value > max {
+                    return None;
                 }
-                fn from_index(index: Psize) -> Option<Self> {
-                    if index <= Self::total_permutations() {
-                        return Some(Self((index as #nt)+(#min as #nt)));
-                    } else {
-                        return None;
-                    }
+
+                Some((max-value) as Psize)
+            }
+        }}
+    };
+    let from_index = match (signed, backwards) {
+        (true, false) => {quote::quote!{
+            fn from_index(index: Psize) -> Option<Self> {
+                if index <= Self::total_permutations() {
+                    return Some(Self((index as #unt as #nt)+(#min as #unt as #nt)));
+                } else {
+                    return None;
                 }
             }
-        }.into();
-    }
+        }}
+        (false, false) => {quote::quote!{
+            fn from_index(index: Psize) -> Option<Self> {
+                if index <= Self::total_permutations() {
+                    return Some(Self((index as #unt)+(#min as #unt)));
+                } else {
+                    return None;
+                }
+            }
+        }}
+        (true, true) => {quote::quote!{
+            fn from_index(index: Psize) -> Option<Self> {
+                if index <= Self::total_permutations() {
+                    return Some(Self((#min as #nt)-(index as #unt as #nt)+(#max as #unt as #nt)));
+                } else {
+                    return None;
+                }
+            }
+        }}
+        (false, true) => {quote::quote!{
+            fn from_index(index: Psize) -> Option<Self> {
+                if index <= Self::total_permutations() {
+                    return Some(Self((#min as #unt)-(index as #unt)+(#max as #unt)));
+                } else {
+                    return None;
+                }
+            }
+        }}
+    };
+
+    return quote::quote! {
+        #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+        pub struct #name(#tt);
+        impl #name {
+            pub fn into_super(&self) -> #tt {
+                self.0
+            }
+        }
+        impl From<#name> for #tt {
+            fn from(value: #name) -> Self {
+                value.0
+            }
+        }
+        impl From<#tt> for #name {
+            fn from(value: #tt) -> Self {
+                Self(value)
+            }
+        }
+        impl Permutation for #name {
+            #total_permutations
+            #current_permutations
+            #from_index
+        }
+    }.into();
 }
 
 fn encode(

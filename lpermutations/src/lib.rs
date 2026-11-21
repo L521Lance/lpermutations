@@ -1,5 +1,6 @@
 pub use lper_macros::*;
 pub type Psize = u128;
+pub type Pisize = i128;
 
 pub trait Permutation: Sized {
     fn total_permutations() -> Psize;
@@ -66,17 +67,17 @@ macro_rules! permutation_for_num {
 
         impl Permutation for $name {
             fn total_permutations() -> Psize {
-                (<$nt>::MAX as u128 + 1)
+                (<$nt>::MAX as Psize + 1)
                     .try_into()
                     .expect("numeric range does not fit Psize")
             }
 
             fn current_permutation(&self) -> Option<Psize> {
-                (self.0 as u128).try_into().ok()
+                (self.0 as Psize).try_into().ok()
             }
 
             fn from_index(index: Psize) -> Option<Self> {
-                if index as u128 > <$nt>::MAX as u128 {
+                if index as Psize > <$nt>::MAX as Psize {
                     return None;
                 }
 
@@ -110,20 +111,20 @@ macro_rules! permutation_for_signed_num {
         }
         impl Permutation for $name {
             fn total_permutations() -> Psize {
-                ((<$nt>::MAX as u128) * 2 + 2)
+                ((<$nt>::MAX as Psize) * 2 + 2)
                     .try_into()
                     .expect("numeric range does not fit Psize")
             }
             fn current_permutation(&self) -> Option<Psize> {
-                let offset = (self.0 as i128) - (<$nt>::MIN as i128);
+                let offset = (self.0 as Pisize) - (<$nt>::MIN as Pisize);
                 Psize::try_from(offset).ok()
             }
 
             fn from_index(index: Psize) -> Option<Self> {
-                let offset = index as i128;
-                let value = (<$nt>::MIN as i128).checked_add(offset)?;
+                let offset = index as Pisize;
+                let value = (<$nt>::MIN as Pisize).checked_add(offset)?;
 
-                if value > <$nt>::MAX as i128 {
+                if value > <$nt>::MAX as Pisize {
                     return None;
                 }
 

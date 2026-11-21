@@ -1,8 +1,10 @@
 pub use lper_macros::*;
+pub type Psize = u128;
+
 pub trait Permutation: Sized {
-    fn total_permutations() -> usize;
-    fn current_permutation(&self) -> Option<usize>;
-    fn from_index(index: usize) -> Option<Self>;
+    fn total_permutations() -> Psize;
+    fn current_permutation(&self) -> Option<Psize>;
+    fn from_index(index: Psize) -> Option<Self>;
 
     fn into_iter() -> impl Iterator<Item = Self> {
         (0..Self::total_permutations()).filter_map(Self::from_index)
@@ -12,7 +14,7 @@ pub trait Permutation: Sized {
         (0..Self::total_permutations()).filter_map(Self::from_index)
     }
 
-    fn range_iter(start: usize, end: usize) -> impl Iterator<Item = Self> {
+    fn range_iter(start: Psize, end: Psize) -> impl Iterator<Item = Self> {
         assert!(!(start > end));
         assert!(end <= Self::total_permutations());
         (start..end).filter_map(Self::from_index)
@@ -63,17 +65,17 @@ macro_rules! permutation_for_num {
         }
 
         impl Permutation for $name {
-            fn total_permutations() -> usize {
+            fn total_permutations() -> Psize {
                 (<$nt>::MAX as u128 + 1)
                     .try_into()
-                    .expect("numeric range does not fit usize")
+                    .expect("numeric range does not fit Psize")
             }
 
-            fn current_permutation(&self) -> Option<usize> {
+            fn current_permutation(&self) -> Option<Psize> {
                 (self.0 as u128).try_into().ok()
             }
 
-            fn from_index(index: usize) -> Option<Self> {
+            fn from_index(index: Psize) -> Option<Self> {
                 if index as u128 > <$nt>::MAX as u128 {
                     return None;
                 }
@@ -107,17 +109,17 @@ macro_rules! permutation_for_signed_num {
             }
         }
         impl Permutation for $name {
-            fn total_permutations() -> usize {
+            fn total_permutations() -> Psize {
                 ((<$nt>::MAX as u128) * 2 + 2)
                     .try_into()
-                    .expect("numeric range does not fit usize")
+                    .expect("numeric range does not fit Psize")
             }
-            fn current_permutation(&self) -> Option<usize> {
+            fn current_permutation(&self) -> Option<Psize> {
                 let offset = (self.0 as i128) - (<$nt>::MIN as i128);
-                usize::try_from(offset).ok()
+                Psize::try_from(offset).ok()
             }
 
-            fn from_index(index: usize) -> Option<Self> {
+            fn from_index(index: Psize) -> Option<Self> {
                 let offset = index as i128;
                 let value = (<$nt>::MIN as i128).checked_add(offset)?;
 
@@ -135,10 +137,8 @@ permutation_for_num!(u8, Pu8);
 permutation_for_num!(u16, Pu16);
 permutation_for_num!(u32, Pu32);
 permutation_for_num!(u64, Pu64);
-permutation_for_num!(usize, Pusize);
 
 permutation_for_signed_num!(i8, u8, Pi8);
 permutation_for_signed_num!(i16, u16, Pi16);
 permutation_for_signed_num!(i32, u32, Pi32);
 permutation_for_signed_num!(i64, u64, Pi64);
-permutation_for_signed_num!(isize, usize, Pisize);

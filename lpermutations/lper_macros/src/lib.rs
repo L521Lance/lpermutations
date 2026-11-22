@@ -3,6 +3,7 @@ type Psize = u128;
 #[allow(dead_code)]
 type Pisize = i128;
 
+/* #region PermutationEnum */
 #[proc_macro_derive(PermutationEnum)]
 pub fn permutation_enum(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let input: syn::DeriveInput = syn::parse_macro_input!(input as syn::DeriveInput);
@@ -133,6 +134,9 @@ pub fn permutation_enum(input: proc_macro::TokenStream) -> proc_macro::TokenStre
         }
     }.into()
 }
+/* #endregion */
+
+/* #region permutation_for_range_num */
 fn eval_expr(expr: &syn::Expr) -> syn::Result<i64> {
     use syn::{Expr, BinOp, UnOp};
     match expr {
@@ -187,7 +191,7 @@ fn eval_expr(expr: &syn::Expr) -> syn::Result<i64> {
         )),
     }
 }
-//region A
+
 struct PermutationForRangeNum {
     name: syn::Ident,
     min : i64,
@@ -218,11 +222,11 @@ impl syn::parse::Parse for PermutationForRangeNum {
         })
     }
 }
-fn fill_right_bits(mut n: usize) -> usize {
-    let mut old_n: usize = n^1;
+fn fill_right_bits<T: num_traits::PrimInt>(mut n: T) -> T {
+    let mut old_n: T = n^T::one();
     while old_n != n {
         old_n = n;
-        n |= n>>1;
+        n = n|n>>1;
     }
     return n;
 }
@@ -284,22 +288,22 @@ pub fn permutation_for_range_num(input: proc_macro::TokenStream) -> proc_macro::
     let total_permutations = match (signed, backwards) {
         (true, false) => {quote::quote!{
             fn total_permutations() -> Psize {
-                (#max as Pisize)-(#min as Pisize)+1 as Psize
+                (#max as Pisize)-(#min as Pisize)+1
             }
         }}
         (false, false) => {quote::quote!{
             fn total_permutations() -> Psize {
-                (#max as Psize)-(#min as Psize)+1 as Psize
+                (#max as Psize)-(#min as Psize)+1
             }
         }}
         (true, true) => {quote::quote!{
             fn total_permutations() -> Psize {
-                (#min as Pisize)-(#max as Pisize)+1 as Psize
+                (#min as Pisize)-(#max as Pisize)+1
             }
         }}
         (false, true) => {quote::quote!{
             fn total_permutations() -> Psize {
-                (#min as Psize)-(#max as Psize)+1 as Psize
+                (#min as Psize)-(#max as Psize)+1
             }
         }}
     };
@@ -395,56 +399,57 @@ pub fn permutation_for_range_num(input: proc_macro::TokenStream) -> proc_macro::
         }
     }.into();
 }
+/* #endregion */
 
-fn encode(
-    values: Vec<proc_macro2::TokenStream>,
-    radices: Vec<proc_macro2::TokenStream>,
-) -> proc_macro2::TokenStream {
-    assert_eq!(values.len(), radices.len());
-
-    let operations = values.iter().zip(radices.iter()).map(
-        |(value, radix)| {
-            quote::quote! {
-                MACRO__encode__index =
-                    MACRO__encode__index
-                        .checked_mul(#radix)?
-                        .checked_add(#value)?;
-            }
-        }
-    );
-
-    quote::quote! {
-        let mut MACRO__encode__index = (0 as Psize);
-        #(#operations)*
-        return Some(MACRO__encode__index);
-    }
-}
-
-fn decode(
-    in_: syn::Ident,
-    values: Vec<proc_macro2::TokenStream>,
-    value_types: Vec<proc_macro2::TokenStream>,
-    radices: Vec<proc_macro2::TokenStream>,
-) -> proc_macro2::TokenStream {
-    assert_eq!(values.len(), radices.len());
-
-    let operations = values.iter()
-                     .zip(value_types.iter())
-                     .zip(radices.iter()).rev().map(
-        |((value, value_type), radix)| {
-            quote::quote! {
-                #value = #value_type::from_index(#in_ % #radix)?;
-                #in_ /= #radix;
-            }
-        }
-    );
-
-    quote::quote! {
-        #(#operations)*
-    }
-}
+/* #region PermutationStruct */
 #[proc_macro_derive(PermutationStruct)]
 pub fn permutation_struct(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+    fn encode(
+        values: Vec<proc_macro2::TokenStream>,
+        radices: Vec<proc_macro2::TokenStream>,
+    ) -> proc_macro2::TokenStream {
+        assert_eq!(values.len(), radices.len());
+    
+        let operations = values.iter().zip(radices.iter()).map(
+            |(value, radix)| {
+                quote::quote! {
+                    MACRO__encode__index =
+                        MACRO__encode__index
+                            .checked_mul(#radix)?
+                            .checked_add(#value)?;
+                }
+            }
+        );
+    
+        quote::quote! {
+            let mut MACRO__encode__index = (0 as Psize);
+            #(#operations)*
+            return Some(MACRO__encode__index);
+        }
+    }
+    fn decode(
+        in_: syn::Ident,
+        values: Vec<proc_macro2::TokenStream>,
+        value_types: Vec<proc_macro2::TokenStream>,
+        radices: Vec<proc_macro2::TokenStream>,
+    ) -> proc_macro2::TokenStream {
+        assert_eq!(values.len(), radices.len());
+    
+        let operations = values.iter()
+                         .zip(value_types.iter())
+                         .zip(radices.iter()).rev().map(
+            |((value, value_type), radix)| {
+                quote::quote! {
+                    #value = #value_type::from_index(#in_ % #radix)?;
+                    #in_ /= #radix;
+                }
+            }
+        );
+    
+        quote::quote! {
+            #(#operations)*
+        }
+    }
     let input: syn::DeriveInput = syn::parse_macro_input!(input as syn::DeriveInput);
 
     let struct_name = &input.ident;
@@ -532,3 +537,168 @@ pub fn permutation_struct(input: proc_macro::TokenStream) -> proc_macro::TokenSt
         }
     }.into()
 }
+/* #endregion */
+
+/* #region permutation_vec */
+struct PermutationVec {
+    name: syn::Ident,
+    ty: syn::Type,
+    size: syn::Expr,
+}
+impl syn::parse::Parse for PermutationVec {
+    fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
+        let name = input.parse()?;
+        input.parse::<syn::Token![,]>()?;
+        let ty = input.parse()?;
+        input.parse::<syn::Token![,]>()?;
+        let size = input.parse()?;
+        return Ok(Self {
+            name: name,
+            ty: ty,
+            size: size
+        })
+    }
+}
+#[proc_macro]
+pub fn permutation_vec(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+    fn decode(
+        ty: &syn::Type,
+        size: usize,
+    ) -> proc_macro2::TokenStream {
+        let operations = std::iter::repeat_n(
+            quote::quote! {{
+                let r = #ty::from_index(
+                    i % #ty::total_permutations()
+                )?;
+                i /= #ty::total_permutations();
+                r
+            }},
+            size,
+        );
+
+        quote::quote! {
+            Box::<[#ty; #size]>::new([#(#operations),*])
+        }
+    }
+    let input = syn::parse_macro_input!(input as PermutationVec);
+    let name = &input.name;
+    let ty = &input.ty;
+    let size = eval_expr(&input.size).unwrap();
+    assert!(size >= 1, "Size must be at least 1");
+    let mut total_permutations: Vec<_> = vec![quote::quote![(0 as Psize) + ]];
+    for i in 1..size {
+        let mut a: Vec<_> = vec![];
+        for _ in 0..i {
+            a.push(quote::quote! { #ty::total_permutations() });
+            a.push(quote::quote![*]);
+        }
+        _ = a.pop();
+        total_permutations.push(quote::quote![#(#a)*]);
+        total_permutations.push(quote::quote![+]);
+    }
+    _ = total_permutations.pop();
+    let total_permutations = quote::quote! { #(#total_permutations)* + 1 };
+    let mut prev = quote::quote! {};
+    let mut froms = quote::quote! {};
+    let mut intos = quote::quote! {};
+    for i in 1..=size {
+        let end = if i == 1 {quote::quote! {
+            #ty::total_permutations()
+        }} else {quote::quote! {
+            #ty::total_permutations().pow(#i as u32)+#ty::total_permutations()
+        }};
+        let d = decode(
+            &ty,
+            i as usize
+        );
+        let from = if i == 1i64 {quote::quote! {
+            if i <= (#end as Psize) {
+                i -= 1;
+                return Some(Self {
+                    array: #d
+                })
+            }
+        }} else {quote::quote! {
+            if i <= (#end as Psize) {
+                i -= (#prev as Psize)+1;
+                return Some(Self {
+                    array: #d
+                })
+            }
+        }};
+        let intoo: Vec<_> = if i == 1 {
+            vec![]
+        } else {(0..i).into_iter().map(
+            |j| {
+                if j == 0 {
+                    quote::quote! {
+                        + self.array[#j as usize].current_permutation()?
+                    }
+                } else {
+                    quote::quote! {
+                        + #ty::total_permutations().pow(#j as u32)
+                        * self.array[#j as usize].current_permutation()?
+                    }
+                }
+            }
+        ).collect()};
+        let into = if i == 1 {
+            quote::quote! {
+                if l == 1usize {
+                    return Some(
+                        1 + self.array[0].current_permutation()?
+                    );
+                }
+            }
+        } else {
+            quote::quote! {
+                if l == (#i as usize) {
+                    return Some(
+                        ((#prev as Psize) + 1)
+                        #(#intoo)*
+                    );
+                }
+            }
+        };
+        froms = quote::quote! { #froms #from };
+        intos = quote::quote! { #intos #into };
+        prev = end;
+    }
+    let a = quote::quote! {
+        struct #name {
+            array: Box<[#ty]>
+        }
+        impl crate::lpermutations::Permutation for #name {
+            fn total_permutations() -> Psize {
+                return #total_permutations;
+            }
+            fn current_permutation(&self) -> Option<Psize> {
+                let l = self.array.len();
+                if l == 0 {
+                    return Some(0);
+                }
+                if l >= (#size as usize) {
+                    return None;
+                }
+
+                #intos
+                
+                None
+            }
+            fn from_index(i: Psize) -> Option<Self> {
+                let mut i = i;
+                if i == 0 {
+                    return Some(Self{array: Box::<[#ty; 0]>::new([])})
+                }
+                if i > Self::total_permutations() {
+                    return None;
+                }
+                #froms
+                return None;
+            }
+        }
+    };
+    println!("{}", a);
+    a.into()
+}
+/* #endregion */

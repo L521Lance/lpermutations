@@ -10,3 +10,4 @@ proc-macro = true
 proc-macro2 = "1.0.107"
 quote = "1.0.47"
 syn = { "version" = "3.0.10" }
+num-traits = "0.2"

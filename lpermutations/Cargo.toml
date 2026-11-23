@@ -1,7 +1,8 @@
 [package]
 name = "lpermutations"
-version = "0.2.2"
+version = "0.3.0"
 edition = "2024"
 
 [dependencies]
-lper_macros = { path = "lper_macros" }
+lpermutations_impl = { path = "lpermutations_impl" }
+lpermutations_macros = { path = "lpermutations_macros" }
